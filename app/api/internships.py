@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
+# pyrefly: ignore [missing-import]
+from sqlalchemy.exc import IntegrityError
 from app.db.database import get_db
 from app.db.models import Internship
-from app.schemas.internship import InternshipCreate, InternshipResponse
+from app.schemas.internship import InternshipCreate, InternshipResponse, InternshipUpdate
 
 router=APIRouter()
 
@@ -20,9 +22,16 @@ def create_internship(internship: InternshipCreate, db : Session = Depends(get_d
         remote=internship.remote,
         url=internship.url
     )
-    db.add(db_internship)
-    db.commit()
-    db.refresh(db_internship)
+    try:
+        db.add(db_internship)
+        db.commit()
+        db.refresh(db_internship)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Internship already exists"
+        )
     return db_internship    
 
 @router.get("/internships/{id}", response_model=InternshipResponse)
@@ -49,3 +58,31 @@ def get_internships( country: str = None,remote: bool = None,db: Session = Depen
         query = query.filter(*filters)
 
     return query.all()
+
+@router.put("/internships/{id}", response_model=InternshipResponse)
+def update_internship(id: int, internship: InternshipUpdate, db: Session=Depends(get_db)):
+    item= db.query(Internship).filter(Internship.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404,detail="Internship not found")
+    item.title = internship.title
+    item.company = internship.company
+    item.country = internship.country
+    item.remote = internship.remote
+    item.url = internship.url
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/internships/{id}")
+def delete_internship(id: int , db: Session= Depends(get_db)):
+    item = db.query(Internship).filter(Internship.id == id).first()
+    if not item:
+        raise HTTPException( status_code=404, detail="Internship not found")
+    db.delete(item)
+    db.commit()
+    return {"message": "Internship deleted successfully"}
+
+
+
+

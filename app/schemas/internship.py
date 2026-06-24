@@ -14,3 +14,10 @@ class InternshipResponse(BaseModel):
     country:str
     remote:bool
     url:str
+
+class InternshipUpdate(BaseModel):
+    title:str
+    company:str
+    country:str
+    remote:bool
+    url:str
